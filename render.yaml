@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: ncsm-portal
+    env: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: NCSM_APP_URL
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ncsm-postgres
+          property: connectionString
+      - key: NCSM_SEED_PASSWORD
+        sync: false
+      - key: NCSM_SUPABASE_URL
+        sync: false
+      - key: NCSM_SUPABASE_ANON_KEY
+        sync: false
+      - key: NCSM_SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: NCSM_SUPABASE_BUCKET
+        sync: false
+      - key: NCSM_UPLOAD_PATH
+        value: /var/www/html/uploads
+    disk:
+      name: ncsm-uploads
+      mountPath: /var/www/html/uploads
+      sizeGB: 10
+
+databases:
+  - name: ncsm-postgres
+    databaseName: ncsm_portal
+    user: ncsm_portal
+    plan: free
