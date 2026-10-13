@@ -6,6 +6,15 @@ class Database {
     private $connection;
 
     private function __construct() {
+        if (!class_exists('PDO') || !in_array('pgsql', PDO::getAvailableDrivers(), true)) {
+            $driverError = 'PHP PostgreSQL support is missing. Install the pdo_pgsql extension for PHP and restart the web server before using this application.';
+            error_log($driverError);
+            if (in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', '::1'])) {
+                die($driverError);
+            }
+            die('A database error occurred. Please try again later.');
+        }
+
         try {
             $dsn = "pgsql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME;
             if (DB_SSLMODE !== '') {
@@ -22,12 +31,11 @@ class Database {
                 ]
             );
         } catch (PDOException $e) {
-                error_log('Database connection failed for ' . DB_HOST . '/' . DB_NAME . ': ' . $e->getMessage());
+            error_log('Database connection failed for ' . DB_HOST . '/' . DB_NAME . ': ' . $e->getMessage());
             if (in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', '::1'])) {
                 die("Database connection failed: " . $e->getMessage());
-            } else {
-                die("A database error occurred. Please try again later.");
             }
+            die("A database error occurred. Please try again later.");
         }
     }
 
