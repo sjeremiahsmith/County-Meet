@@ -6,8 +6,22 @@ class Database {
     private $connection;
 
     private function __construct() {
-        if (!class_exists('PDO') || !in_array('pgsql', PDO::getAvailableDrivers(), true)) {
-            $driverError = 'PHP PostgreSQL support is missing. Install the pdo_pgsql extension for PHP and restart the web server before using this application.';
+        $availableDrivers = class_exists('PDO') ? PDO::getAvailableDrivers() : [];
+        $orderedDrivers = [];
+
+        foreach (['pgsql', 'mysql', 'sqlite'] as $candidate) {
+            if (in_array($candidate, $availableDrivers, true)) {
+                $orderedDrivers[] = $candidate;
+            }
+        }
+
+        $requestedDriver = DB_DRIVER;
+        $driver = in_array($requestedDriver, $availableDrivers, true)
+            ? $requestedDriver
+            : ($orderedDrivers[0] ?? null);
+
+        if ($driver === null) {
+            $driverError = 'No supported PDO database driver is available. Install the PostgreSQL driver (pdo_pgsql) or configure a compatible MySQL/SQLite database.';
             error_log($driverError);
             if (in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', '::1'])) {
                 die($driverError);
@@ -16,14 +30,33 @@ class Database {
         }
 
         try {
-            $dsn = "pgsql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME;
-            if (DB_SSLMODE !== '') {
-                $dsn .= ';sslmode=' . DB_SSLMODE;
+            switch ($driver) {
+                case 'pgsql':
+                    $dsn = "pgsql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME;
+                    if (DB_SSLMODE !== '') {
+                        $dsn .= ';sslmode=' . DB_SSLMODE;
+                    }
+                    $username = DB_USER;
+                    $password = DB_PASS;
+                    break;
+                case 'mysql':
+                    $dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=utf8mb4";
+                    $username = DB_USER;
+                    $password = DB_PASS;
+                    break;
+                case 'sqlite':
+                    $dsn = 'sqlite:' . DB_PATH;
+                    $username = null;
+                    $password = null;
+                    break;
+                default:
+                    throw new RuntimeException('Unsupported database driver: ' . $driver);
             }
+
             $this->connection = new PDO(
                 $dsn,
-                DB_USER,
-                DB_PASS,
+                $username,
+                $password,
                 [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -31,7 +64,7 @@ class Database {
                 ]
             );
         } catch (PDOException $e) {
-            error_log('Database connection failed for ' . DB_HOST . '/' . DB_NAME . ': ' . $e->getMessage());
+            error_log('Database connection failed for ' . DB_HOST . '/' . DB_NAME . ' using ' . $driver . ': ' . $e->getMessage());
             if (in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', '::1'])) {
                 die("Database connection failed: " . $e->getMessage());
             }

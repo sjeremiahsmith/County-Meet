@@ -11,12 +11,30 @@ $databaseQuery = [];
 if (is_array($databaseParts) && !empty($databaseParts['query'])) {
     parse_str($databaseParts['query'], $databaseQuery);
 }
+$databaseDriver = strtolower(configEnv('NCSM_DB_DRIVER', configEnv('DB_DRIVER', $databaseParts['scheme'] ?? 'pgsql')));
+if ($databaseDriver === 'postgresql') {
+    $databaseDriver = 'pgsql';
+}
+if (class_exists('PDO')) {
+    $availableDrivers = PDO::getAvailableDrivers();
+    if (!in_array($databaseDriver, $availableDrivers, true)) {
+        foreach (['pgsql', 'mysql', 'sqlite'] as $fallbackDriver) {
+            if (in_array($fallbackDriver, $availableDrivers, true)) {
+                $databaseDriver = $fallbackDriver;
+                break;
+            }
+        }
+    }
+}
+
+define('DB_DRIVER', $databaseDriver);
 define('DB_HOST', $databaseParts['host'] ?? configEnv('NCSM_DB_HOST', '127.0.0.1'));
-define('DB_PORT', (string)($databaseParts['port'] ?? configEnv('NCSM_DB_PORT', '5432')));
-define('DB_NAME', isset($databaseParts['path']) ? ltrim($databaseParts['path'], '/') : configEnv('NCSM_DB_NAME', 'ncsm_portal'));
-define('DB_USER', isset($databaseParts['user']) ? urldecode($databaseParts['user']) : configEnv('NCSM_DB_USER', 'postgres'));
+define('DB_PORT', (string)($databaseParts['port'] ?? configEnv('NCSM_DB_PORT', $databaseDriver === 'mysql' ? '3306' : '5432')));
+define('DB_NAME', isset($databaseParts['path']) ? ltrim($databaseParts['path'], '/') : configEnv('NCSM_DB_NAME', $databaseDriver === 'sqlite' ? 'app.sqlite' : 'ncsm_portal'));
+define('DB_USER', isset($databaseParts['user']) ? urldecode($databaseParts['user']) : configEnv('NCSM_DB_USER', $databaseDriver === 'mysql' ? 'root' : 'postgres'));
 define('DB_PASS', isset($databaseParts['pass']) ? urldecode($databaseParts['pass']) : configEnv('NCSM_DB_PASS', ''));
 define('DB_SSLMODE', $databaseQuery['sslmode'] ?? configEnv('NCSM_DB_SSLMODE', ''));
+define('DB_PATH', configEnv('NCSM_DB_PATH', dirname(__DIR__) . DIRECTORY_SEPARATOR . 'database' . DIRECTORY_SEPARATOR . 'app.sqlite'));
 
 // Application configuration
 define('APP_NAME', 'National County Sports System');
